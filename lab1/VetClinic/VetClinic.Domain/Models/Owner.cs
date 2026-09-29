@@ -1,11 +1,32 @@
 namespace VetClinic.Domain.Models;
 
-/// <summary>владелец питомца</summary>
+/// <summary>
+/// Владелец питомца
+/// </summary>
 public class Owner
 {
-    public int         Id       { get; set; }
-    public string      FullName { get; set; } = string.Empty;
-    public string      Address  { get; set; } = string.Empty;
-    public string      Phone    { get; set; } = string.Empty;
-    public List<Pet>   Pets     { get; set; } = new();
+    /// <summary>
+    /// Уникальный идентификатор владельца
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// ФИО владельца
+    /// </summary>
+    public required string FullName { get; set; }
+
+    /// <summary>
+    /// Адрес проживания
+    /// </summary>
+    public required string Address { get; set; }
+
+    /// <summary>
+    /// Контактный телефон
+    /// </summary>
+    public required string Phone { get; set; }
+
+    /// <summary>
+    /// Список питомцев владельца
+    /// </summary>
+    public List<Pet> Pets { get; set; } = [];
 }

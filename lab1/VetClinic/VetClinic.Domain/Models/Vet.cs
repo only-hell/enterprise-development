@@ -1,14 +1,37 @@
 namespace VetClinic.Domain.Models;
 
-/// <summary>вет врач</summary>
+/// <summary>
+/// Ветеринарный врач
+/// </summary>
 public class Vet
 {
-    public int            Id                  { get; set; }
-    public string         PassportNumber      { get; set; } = string.Empty;
-    public string         FullName            { get; set; } = string.Empty;
-    public int            BirthYear           { get; set; }
-    public Specialization Specialization      { get; set; } = null!;
+    /// <summary>
+    /// Уникальный идентификатор врача
+    /// </summary>
+    public int Id { get; set; }
 
-    /// <summary>стаж работы в годах</summary>
-    public int            WorkExperienceYears { get; set; }
+    /// <summary>
+    /// Номер паспорта
+    /// </summary>
+    public required string PassportNumber { get; set; }
+
+    /// <summary>
+    /// ФИО врача
+    /// </summary>
+    public required string FullName { get; set; }
+
+    /// <summary>
+    /// Год рождения
+    /// </summary>
+    public int BirthYear { get; set; }
+
+    /// <summary>
+    /// Специализация врача
+    /// </summary>
+    public Specialization? Specialization { get; set; }
+
+    /// <summary>
+    /// Стаж работы в годах
+    /// </summary>
+    public int WorkExperienceYears { get; set; }
 }

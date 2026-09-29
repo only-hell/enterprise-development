@@ -1,11 +1,32 @@
 namespace VetClinic.Domain.Models;
 
-/// <summary>биологический вид животного - перечисление</summary>
+/// <summary>
+/// Биологический вид животного
+/// </summary>
 public enum AnimalSpecies
 {
-    Dog     = 1,
-    Cat     = 2,
-    Bird    = 3,
-    Rabbit  = 4,
+    /// <summary>
+    /// Собака
+    /// </summary>
+    Dog = 1,
+
+    /// <summary>
+    /// Кошка
+    /// </summary>
+    Cat = 2,
+
+    /// <summary>
+    /// Птица
+    /// </summary>
+    Bird = 3,
+
+    /// <summary>
+    /// Кролик
+    /// </summary>
+    Rabbit = 4,
+
+    /// <summary>
+    /// Хомяк
+    /// </summary>
     Hamster = 5
 }

@@ -1,9 +1,22 @@
 namespace VetClinic.Domain.Models;
 
-/// <summary>порода - справочник привязанный к виду животного</summary>
+/// <summary>
+/// Порода животного — справочник, привязанный к виду
+/// </summary>
 public class Breed
 {
-    public int           Id      { get; set; }
-    public string        Name    { get; set; } = string.Empty;
+    /// <summary>
+    /// Уникальный идентификатор породы
+    /// </summary>
+    public int Id { get; set; }
+
+    /// <summary>
+    /// Название породы
+    /// </summary>
+    public required string Name { get; set; }
+
+    /// <summary>
+    /// Биологический вид животного
+    /// </summary>
     public AnimalSpecies Species { get; set; }
 }

@@ -1,14 +1,23 @@
 namespace VetClinic.Domain.Models;
 
-/// <summary>специализация врача - справочник
-/// FocusSpecies указывает на вид животных на которм сосредоточена специализация
-/// null - общая специализация, не привязанная к конкретному виду</summary>
+/// <summary>
+/// Специализация врача — справочник
+/// </summary>
 public class Specialization
 {
-    public int            Id           { get; set; }
-    public string         Name         { get; set; } = string.Empty;
+    /// <summary>
+    /// Уникальный идентификатор специализации
+    /// </summary>
+    public int Id { get; set; }
 
-    /// <summary>Вид животного, с которым работает данная специализация
-    /// null означает что специализация не зависит от вида</summary>
+    /// <summary>
+    /// Название специализации
+    /// </summary>
+    public required string Name { get; set; }
+
+    /// <summary>
+    /// Вид животного, с которым работает данная специализация.
+    /// Значение null означает общую специализацию без привязки к конкретному виду
+    /// </summary>
     public AnimalSpecies? FocusSpecies { get; set; }
 }

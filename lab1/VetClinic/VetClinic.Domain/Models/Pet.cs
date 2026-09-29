@@ -1,15 +1,42 @@
 namespace VetClinic.Domain.Models;
 
-/// <summary>питомец</summary>
+/// <summary>
+/// Питомец
+/// </summary>
 public class Pet
 {
-    public int           Id        { get; set; }
-    public string        Nickname  { get; set; } = string.Empty;
-    public AnimalSpecies Species   { get; set; }
-    public Breed         Breed     { get; set; } = null!;
-    public DateTime      BirthDate { get; set; }
+    /// <summary>
+    /// Уникальный идентификатор питомца
+    /// </summary>
+    public int Id { get; set; }
 
-    /// <summary>вес в килограммах</summary>
-    public double        Weight    { get; set; }
-    public Owner         Owner     { get; set; } = null!;
+    /// <summary>
+    /// Кличка питомца
+    /// </summary>
+    public required string Nickname { get; set; }
+
+    /// <summary>
+    /// Биологический вид животного
+    /// </summary>
+    public AnimalSpecies Species { get; set; }
+
+    /// <summary>
+    /// Порода
+    /// </summary>
+    public Breed? Breed { get; set; }
+
+    /// <summary>
+    /// Дата рождения
+    /// </summary>
+    public DateTime BirthDate { get; set; }
+
+    /// <summary>
+    /// Вес в килограммах
+    /// </summary>
+    public double Weight { get; set; }
+
+    /// <summary>
+    /// Владелец питомца
+    /// </summary>
+    public Owner? Owner { get; set; }
 }
