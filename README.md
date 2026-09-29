@@ -33,3 +33,7 @@
 cd VetClinic
 dotnet test --solution VetClinic.slnx
 ```
+
+### Результаты тестов
+
+![Результаты тестов](VetClinic/tests.png)
