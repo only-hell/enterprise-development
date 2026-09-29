@@ -1,7 +1,7 @@
 namespace VetClinic.Domain.Models;
 
 /// <summary>
-/// Запись на приём, используется в качестве контракта между владельцем питомца и врачом
+/// Запись питомца на прием к врачу, используется как контракт
 /// </summary>
 public class Appointment
 {
@@ -11,7 +11,7 @@ public class Appointment
     public int Id { get; set; }
 
     /// <summary>
-    /// Дата и время приёма
+    /// Дата и время приема
     /// </summary>
     public DateTime DateTime { get; set; }
 
@@ -21,17 +21,17 @@ public class Appointment
     public required string RoomNumber { get; set; }
 
     /// <summary>
-    /// Признак повторного приёма (true — повторный, false — первичный)
+    /// Повторный прием (true) или первичный (false)
     /// </summary>
     public bool IsRepeat { get; set; }
 
     /// <summary>
-    /// Питомец, записанный на приём
+    /// Питомец, записанный на прием
     /// </summary>
     public Pet? Pet { get; set; }
 
     /// <summary>
-    /// Ветеринар, ведущий приём
+    /// Врач, который ведет прием
     /// </summary>
     public Vet? Vet { get; set; }
 }

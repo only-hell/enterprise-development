@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="VetClinic.Domain/VetClinic.Domain.csproj" />
+  <Project Path="VetClinic.Tests/VetClinic.Tests.csproj" />
+</Solution>

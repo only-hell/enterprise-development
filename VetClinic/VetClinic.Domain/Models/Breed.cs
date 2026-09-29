@@ -1,7 +1,7 @@
 namespace VetClinic.Domain.Models;
 
 /// <summary>
-/// Порода животного — справочник, привязанный к виду
+/// Порода животного
 /// </summary>
 public class Breed
 {
