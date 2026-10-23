@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="VetClinic.Domain/VetClinic.Domain.csproj" />
+  <Project Path="VetClinic.Infrastructure.InMemory/VetClinic.Infrastructure.InMemory.csproj" Id="e35ab524-39a9-44d0-8c2a-daa8ba3a764f" />
   <Project Path="VetClinic.Tests/VetClinic.Tests.csproj" />
 </Solution>
