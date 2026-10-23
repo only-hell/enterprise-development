@@ -1,11 +1,12 @@
 using VetClinic.Domain.Models;
+using VetClinic.Domain.Seeds;
 
 namespace VetClinic.Tests;
 
 /// <summary>
 /// Unit тесты аналитических запросов ветеринарной клиники
 /// </summary>
-public class VetClinicTests(VetClinicTestData data) : IClassFixture<VetClinicTestData>
+public class VetClinicTests(VetClinicSeed data) : IClassFixture<VetClinicSeed>
 {
     /// <summary>
     /// Все ветеринары, специализирующиеся на выбранном виде животных

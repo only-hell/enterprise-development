@@ -1,11 +1,11 @@
 using VetClinic.Domain.Models;
 
-namespace VetClinic.Tests;
+namespace VetClinic.Domain.Seeds;
 
 /// <summary>
-/// Тестовые данные для unit-тестов, передаются в тесты через IClassFixture
+/// Начальные данные ветеринарной клиники, совпадающие с данными unit тестов первой лабораторной
 /// </summary>
-public class VetClinicTestData
+public class VetClinicSeed
 {
     /// <summary>
     /// Специализации врачей
@@ -62,7 +62,7 @@ public class VetClinicTestData
     /// </summary>
     public List<Appointment> Appointments { get; }
 
-    public VetClinicTestData()
+    public VetClinicSeed()
     {
         Owners =
         [
