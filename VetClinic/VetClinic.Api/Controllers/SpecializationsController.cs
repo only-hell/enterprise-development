@@ -10,6 +10,7 @@ namespace VetClinic.Api.Controllers;
 /// <param name="service">Сервис</param>
 /// <param name="logger">Логгер</param>
 [Route("api/specializations")]
+[Tags("Специализации врачей")]
 public class SpecializationsController(ISpecializationService service, ILogger<SpecializationsController> logger)
     : CrudControllerBase<SpecializationDto, SpecializationEditDto>(service, logger)
 {

@@ -10,6 +10,7 @@ namespace VetClinic.Api.Controllers;
 /// <param name="service">Сервис</param>
 /// <param name="logger">Логгер</param>
 [Route("api/pets")]
+[Tags("Питомцы")]
 public class PetsController(IPetService service, ILogger<PetsController> logger)
     : CrudControllerBase<PetDto, PetEditDto>(service, logger)
 {

@@ -16,6 +16,7 @@ namespace VetClinic.Api.Controllers;
 /// <param name="logger">Логгер</param>
 [ApiController]
 [Route("api/analytics")]
+[Tags("Аналитика")]
 [Produces("application/json")]
 public class AnalyticsController(IAnalyticsService service, ILogger<AnalyticsController> logger) : ControllerBase
 {

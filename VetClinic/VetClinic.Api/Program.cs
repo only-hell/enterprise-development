@@ -33,31 +33,7 @@ builder.Services
     .AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    foreach (var xml in Directory.GetFiles(AppContext.BaseDirectory, "VetClinic.*.xml"))
-    {
-        options.IncludeXmlComments(xml);
-    }
-
-    // Названия групп в Scalar: по умолчанию берется имя контроллера (Vets, Models и т.д.)
-    var groupNames = new Dictionary<string, string>
-    {
-        ["Owners"] = "Владельцы питомцев",
-        ["Pets"] = "Питомцы",
-        ["Vets"] = "Ветеринарные врачи",
-        ["Appointments"] = "Записи на прием",
-        ["Breeds"] = "Породы животных",
-        ["Specializations"] = "Специализации врачей",
-        ["Analytics"] = "Аналитика"
-    };
-    options.TagActionsBy(api =>
-    {
-        var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
-        return new[] { groupNames.GetValueOrDefault(controller, controller) };
-    });
-});
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
@@ -65,7 +41,7 @@ app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger(options => options.RouteTemplate = "openapi/{documentName}.json");
+    app.MapOpenApi();
     app.MapScalarApiReference();
 }
 
