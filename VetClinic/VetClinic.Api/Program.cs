@@ -40,6 +40,23 @@ builder.Services.AddSwaggerGen(options =>
     {
         options.IncludeXmlComments(xml);
     }
+
+    // Названия групп в Scalar: по умолчанию берется имя контроллера (Vets, Models и т.д.)
+    var groupNames = new Dictionary<string, string>
+    {
+        ["Owners"] = "Владельцы питомцев",
+        ["Pets"] = "Питомцы",
+        ["Vets"] = "Ветеринарные врачи",
+        ["Appointments"] = "Записи на прием",
+        ["Breeds"] = "Породы животных",
+        ["Specializations"] = "Специализации врачей",
+        ["Analytics"] = "Аналитика"
+    };
+    options.TagActionsBy(api =>
+    {
+        var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
+        return new[] { groupNames.GetValueOrDefault(controller, controller) };
+    });
 });
 
 var app = builder.Build();

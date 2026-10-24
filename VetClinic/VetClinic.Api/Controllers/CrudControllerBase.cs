@@ -46,7 +46,7 @@ public abstract class CrudControllerBase<TDto, TEditDto>(
         if (dto is null)
         {
             logger.LogWarning("{Controller}: запись {Id} не найдена", GetType().Name, id);
-            return NotFound();
+            return NotFoundRu(id);
         }
         return Ok(dto);
     }
@@ -88,7 +88,7 @@ public abstract class CrudControllerBase<TDto, TEditDto>(
         if (updated is null)
         {
             logger.LogWarning("{Controller}: запись {Id} для изменения не найдена", GetType().Name, id);
-            return NotFound();
+            return NotFoundRu(id);
         }
         logger.LogInformation("{Controller}: изменена запись {Id}", GetType().Name, id);
         return Ok(updated);
@@ -113,4 +113,18 @@ public abstract class CrudControllerBase<TDto, TEditDto>(
     /// </summary>
     /// <param name="dto">Созданная запись</param>
     protected abstract int GetId(TDto dto);
+
+    /// <summary>
+    /// Ответ 404 с русским описанием в формате ProblemDetails
+    /// </summary>
+    /// <param name="id">Идентификатор, который не найден</param>
+    protected ObjectResult NotFoundRu(int id) => new(new ProblemDetails
+    {
+        Status = StatusCodes.Status404NotFound,
+        Title = "Не найдено",
+        Detail = $"Запись с идентификатором {id} не найдена"
+    })
+    {
+        StatusCode = StatusCodes.Status404NotFound
+    };
 }
