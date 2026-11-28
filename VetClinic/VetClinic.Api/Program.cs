@@ -48,7 +48,7 @@ if (builder.Configuration.GetConnectionString("kafka") is { Length: > 0 } kafkaC
         BootstrapServers = kafkaConnectionString,
         GroupId = "vetclinic-api",
         AutoOffsetReset = AutoOffsetReset.Earliest,
-        AllowAutoCreateTopics = true,
+        AllowAutoCreateTopics = false,
         EnableAutoCommit = false,
         EnableAutoOffsetStore = false,
         ReconnectBackoffMs = 1000,

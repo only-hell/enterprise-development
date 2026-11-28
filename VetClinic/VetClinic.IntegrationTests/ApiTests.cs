@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
 using VetClinic.Contracts.Dto.Appointments;
@@ -144,6 +145,7 @@ public class ApiTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicAp
         using var producer = new ProducerBuilder<string, string>(new ProducerConfig
         {
             BootstrapServers = kafkaAddress,
+            AllowAutoCreateTopics = false,
             MessageTimeoutMs = 30000
         }).Build();
         var contract = new AppointmentContract(
@@ -210,6 +212,57 @@ public class ApiTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicAp
                 Key = item.ExternalId.ToString(),
                 Value = JsonSerializer.Serialize(item, JsonSerializerOptions.Web)
             }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Битое сообщение переносится в отдельный топик, а следующий контракт сохраняется
+    /// </summary>
+    [Fact]
+    public async Task ConsumeAsync_WithMalformedJson_ArchivesMessageAndContinues()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        var cancellationToken = timeout.Token;
+        var kafkaAddress = await _fixture.GetKafkaAddressAsync(cancellationToken);
+        using var producer = new ProducerBuilder<string, string>(new ProducerConfig
+        {
+            BootstrapServers = kafkaAddress,
+            AllowAutoCreateTopics = false,
+            MessageTimeoutMs = 30000
+        }).Build();
+        using var rejected = new ConsumerBuilder<string, string>(new ConsumerConfig
+        {
+            BootstrapServers = kafkaAddress,
+            GroupId = "vetclinic-invalid-test",
+            EnableAutoCommit = false,
+            AllowAutoCreateTopics = false
+        }).Build();
+
+        var source = new TopicPartition(AppointmentContract.Topic, new Partition(0));
+        var invalid = new Message<string, string> { Key = Guid.NewGuid().ToString(), Value = "{" };
+        var sent = await producer.ProduceAsync(source, invalid, cancellationToken);
+        var contract = new AppointmentContract(
+            Guid.NewGuid(),
+            new OwnerContract("Тестовый Владелец Питомца", "ул. Проверочная, 3", "+79000000003"),
+            new PetContract("Рекс", AnimalSpecies.Dog, 1, new DateTime(2022, 11, 10), 25),
+            new VetContract("1000 567890", "Тестовый Ветеринар Приема", 1986, 1, 12),
+            new DateTime(2026, 11, 30, 14, 0, 0),
+            "780",
+            false);
+        await producer.ProduceAsync(source, new Message<string, string>
+        {
+            Key = contract.ExternalId.ToString(),
+            Value = JsonSerializer.Serialize(contract, JsonSerializerOptions.Web)
+        }, cancellationToken);
+
+        var appointments = await WaitForAppointmentsAsync(item => item.RoomNumber == contract.RoomNumber, cancellationToken);
+        Assert.Single(appointments, item => item.RoomNumber == contract.RoomNumber);
+        rejected.Assign(new TopicPartitionOffset(AppointmentContract.DeadLetterTopic, new Partition(0), Offset.Beginning));
+        var archived = rejected.Consume(cancellationToken).Message;
+        Assert.Equal(invalid.Key, archived.Key);
+        Assert.Equal(invalid.Value, archived.Value);
+        Assert.Equal(sent.TopicPartitionOffset.ToString(),
+            Encoding.UTF8.GetString(archived.Headers.GetLastBytes("source-offset")));
     }
 
     /// <summary>

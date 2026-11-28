@@ -23,4 +23,9 @@ public sealed record AppointmentContract(
     /// Топик Kafka для записей на приём
     /// </summary>
     public const string Topic = "vetclinic.appointments";
+
+    /// <summary>
+    /// Топик Kafka для сообщений с некорректным содержимым
+    /// </summary>
+    public const string DeadLetterTopic = "vetclinic.appointments.invalid";
 }
