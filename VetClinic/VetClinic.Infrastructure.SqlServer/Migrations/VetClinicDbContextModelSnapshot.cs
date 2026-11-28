@@ -17,7 +17,7 @@ namespace VetClinic.Infrastructure.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.15")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -778,6 +778,19 @@ namespace VetClinic.Infrastructure.SqlServer.Migrations
                             SpecializationId = 10,
                             WorkExperienceYears = 28
                         });
+                });
+
+            modelBuilder.Entity("VetClinic.Infrastructure.SqlServer.ProcessedContract", b =>
+                {
+                    b.Property<Guid>("ExternalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("ExternalId");
+
+                    b.ToTable("ProcessedContracts", (string)null);
                 });
 
             modelBuilder.Entity("VetClinic.Domain.Models.Appointment", b =>
