@@ -2,14 +2,12 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace VetClinic.IntegrationTests;
 
 /// <summary>
-/// Поднимает приложение через Aspire с настоящим SQL Server на время всего класса тестов
+/// Поднимает приложение через Aspire с настоящим SQL Server на время коллекции тестов
 /// </summary>
 public sealed class ClinicApplicationFixture : IAsyncLifetime
 {
@@ -17,7 +15,6 @@ public sealed class ClinicApplicationFixture : IAsyncLifetime
 
     private DistributedApplication? _application;
     private HttpClient? _api;
-    private string? _apiResourceId;
 
     /// <summary>
     /// Клиент API, готовый к запросам после запуска приложения
@@ -41,9 +38,8 @@ public sealed class ClinicApplicationFixture : IAsyncLifetime
         _application = application;
         await application.StartAsync(cancellationToken);
 
-        var apiResource = await application.ResourceNotifications.WaitForResourceHealthyAsync("api", cancellationToken)
+        await application.ResourceNotifications.WaitForResourceHealthyAsync("api", cancellationToken)
             .WaitAsync(StartupTimeout, cancellationToken);
-        _apiResourceId = apiResource.ResourceId;
 
         _api = application.CreateHttpClient("api", "http");
         _api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await GetTokenAsync(cancellationToken));
@@ -77,27 +73,6 @@ public sealed class ClinicApplicationFixture : IAsyncLifetime
         await Application.ResourceNotifications.WaitForResourceHealthyAsync("kafka", cancellationToken);
         return await Application.GetConnectionStringAsync("kafka", cancellationToken)
             ?? throw new InvalidOperationException("Aspire не передал адрес Kafka");
-    }
-
-    /// <summary>
-    /// Дождаться ошибки обработки сообщения по его ключу в журнале API
-    /// </summary>
-    /// <param name="key">Ключ записи Kafka</param>
-    /// <param name="cancellationToken">Токен отмены</param>
-    public async Task WaitForImportFailureAsync(Guid key, CancellationToken cancellationToken)
-    {
-        var logs = Application.Services.GetRequiredService<ResourceLoggerService>();
-        var message = $"Импорт из Kafka прерван. Ключ записи {key}";
-        var resourceId = _apiResourceId ?? throw new InvalidOperationException("API не запущен");
-        await foreach (var batch in logs.WatchAsync(resourceId).WithCancellation(cancellationToken))
-        {
-            if (batch.Any(line => line.Content.Contains(message, StringComparison.Ordinal)))
-            {
-                return;
-            }
-        }
-
-        throw new InvalidOperationException("Журнал API завершился до появления ошибки импорта");
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using VetClinic.Contracts.Dto.Appointments;
 using VetClinic.Contracts.Dto.Owners;
 using VetClinic.Contracts.Dto.Vets;
@@ -139,6 +140,7 @@ public class ApiTests(ClinicApplicationFixture fixture)
     [Fact]
     public async Task ConsumeAsync_AfterDatabaseWriteFails_RetriesWithoutDuplicates()
     {
+        const string consumerGroup = "vetclinic-api";
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TimeSpan.FromMinutes(2));
         var cancellationToken = timeout.Token;
@@ -148,6 +150,13 @@ public class ApiTests(ClinicApplicationFixture fixture)
             BootstrapServers = kafkaAddress,
             AllowAutoCreateTopics = false,
             MessageTimeoutMs = 30000
+        }).Build();
+        using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = kafkaAddress }).Build();
+        using var offsetReader = new ConsumerBuilder<Ignore, Ignore>(new ConsumerConfig
+        {
+            BootstrapServers = kafkaAddress,
+            GroupId = consumerGroup,
+            EnableAutoCommit = false
         }).Build();
         var contract = new AppointmentContract(
             Guid.NewGuid(),
@@ -174,21 +183,14 @@ public class ApiTests(ClinicApplicationFixture fixture)
         };
         var partition = new TopicPartition(AppointmentContract.Topic, new Partition(0));
 
-        var importFailure = _fixture.WaitForImportFailureAsync(pending.ExternalId, cancellationToken);
         await PublishAsync(contract);
-        await PublishAsync(contract);
+        var duplicateRecord = await PublishAsync(contract);
+        var initialConsumer = await WaitForGroupAsync(duplicateRecord.Offset.Value + 1);
+        Assert.NotNull(initialConsumer);
         var pendingRecord = await PublishAsync(pending);
-        await PublishAsync(next);
+        var nextRecord = await PublishAsync(next);
 
-        await importFailure;
-        using var offsetReader = new ConsumerBuilder<Ignore, Ignore>(new ConsumerConfig
-        {
-            BootstrapServers = kafkaAddress,
-            GroupId = "vetclinic-api",
-            EnableAutoCommit = false
-        }).Build();
-        var committed = Assert.Single(offsetReader.Committed([partition], TimeSpan.FromSeconds(10)));
-        Assert.Equal(pendingRecord.Offset, committed.Offset);
+        await WaitForGroupAsync(pendingRecord.Offset.Value, initialConsumer);
 
         var beforeRetry = await GetAsync<List<AppointmentDto>>("api/appointments");
         Assert.DoesNotContain(beforeRetry, item => item.RoomNumber == pending.RoomNumber || item.RoomNumber == next.RoomNumber);
@@ -197,12 +199,14 @@ public class ApiTests(ClinicApplicationFixture fixture)
 
         using var response = await _fixture.Api.DeleteAsync($"api/vets/{blockingVet.Id}", cancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        var appointments = await WaitForAppointmentsAsync(item => item.RoomNumber == next.RoomNumber, cancellationToken);
+        await WaitForGroupAsync(nextRecord.Offset.Value + 1);
+        var appointments = await GetAsync<List<AppointmentDto>>("api/appointments");
 
         var saved = Assert.Single(appointments, item => item.RoomNumber == contract.RoomNumber);
         Assert.Equal(contract.DateTime, saved.DateTime);
         Assert.Equal(contract.IsRepeat, saved.IsRepeat);
         Assert.Single(appointments, item => item.RoomNumber == pending.RoomNumber);
+        Assert.Single(appointments, item => item.RoomNumber == next.RoomNumber);
         var owners = await GetAsync<List<OwnerDto>>("api/owners");
         Assert.Single(owners, owner => owner.FullName == contract.Owner.FullName);
         Assert.Single(owners, owner => owner.FullName == pending.Owner.FullName);
@@ -213,6 +217,49 @@ public class ApiTests(ClinicApplicationFixture fixture)
                 Key = item.ExternalId.ToString(),
                 Value = JsonSerializer.Serialize(item, JsonSerializerOptions.Web)
             }, cancellationToken);
+
+        async Task<string?> WaitForGroupAsync(long expectedOffset, string? previousConsumer = null)
+        {
+            var committed = Offset.Unset.Value;
+            string? consumer = null;
+            try
+            {
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    committed = Assert.Single(offsetReader.Committed([partition], TimeSpan.FromSeconds(5))).Offset.Value;
+                    if (previousConsumer is not null)
+                    {
+                        Assert.True(committed <= expectedOffset,
+                            $"Офсет {committed} прошёл запись {expectedOffset} до устранения конфликта в SQL Server");
+                    }
+
+                    if (committed >= expectedOffset)
+                    {
+                        var groups = await admin.DescribeConsumerGroupsAsync(
+                            [consumerGroup], new DescribeConsumerGroupsOptions { RequestTimeout = TimeSpan.FromSeconds(5) })
+                            .WaitAsync(cancellationToken);
+                        consumer = Assert.Single(groups.ConsumerGroupDescriptions).Members.SingleOrDefault()?.ConsumerId;
+                        if (consumer != previousConsumer)
+                        {
+                            return consumer;
+                        }
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+                }
+            }
+            catch (OperationCanceledException exception) when (!TestContext.Current.CancellationToken.IsCancellationRequested)
+            {
+                var expectedMember = previousConsumer is null
+                    ? "активный консьюмер"
+                    : $"выход консьюмера {previousConsumer} из группы";
+                throw new TimeoutException(
+                    $"Ожидался офсет {expectedOffset} и {expectedMember} в группе {consumerGroup}. " +
+                    $"Последний офсет {committed}, консьюмер {consumer ?? "отсутствует"}",
+                    exception);
+            }
+        }
     }
 
     /// <summary>
