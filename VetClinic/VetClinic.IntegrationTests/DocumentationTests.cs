@@ -6,7 +6,8 @@ namespace VetClinic.IntegrationTests;
 /// <summary>
 /// Проверки опубликованной документации OpenAPI
 /// </summary>
-public class DocumentationTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicApplicationFixture>
+[Collection(ClinicCollection.Name)]
+public class DocumentationTests(ClinicApplicationFixture fixture)
 {
     private static readonly string[] Resources = ["owners", "pets", "vets", "appointments", "breeds", "specializations"];
 

@@ -14,7 +14,8 @@ namespace VetClinic.IntegrationTests;
 /// <summary>
 /// Проверки API на настоящей базе SQL Server, поднятой через Aspire
 /// </summary>
-public class ApiTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicApplicationFixture>
+[Collection(ClinicCollection.Name)]
+public class ApiTests(ClinicApplicationFixture fixture)
 {
     private readonly ClinicApplicationFixture _fixture = fixture;
 
