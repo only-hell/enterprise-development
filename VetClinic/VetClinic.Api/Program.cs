@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Confluent.Kafka;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using VetClinic.Api.Consumers;
 using VetClinic.Api.Middleware;
 using VetClinic.Api.OpenApi;
 using VetClinic.Application.Auth;
@@ -38,6 +40,23 @@ builder.Services.AddScoped<ISpecializationService, SpecializationService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton(TimeProvider.System);
+
+if (builder.Configuration.GetConnectionString("kafka") is { Length: > 0 } kafkaConnectionString)
+{
+    builder.Services.AddSingleton(new ConsumerConfig
+    {
+        BootstrapServers = kafkaConnectionString,
+        GroupId = "vetclinic-api",
+        AutoOffsetReset = AutoOffsetReset.Earliest,
+        AllowAutoCreateTopics = true,
+        EnableAutoCommit = false,
+        ReconnectBackoffMs = 1000,
+        ReconnectBackoffMaxMs = 30000
+    });
+    builder.Services.AddScoped<IProcessedContractRepository, ProcessedContractRepository>();
+    builder.Services.AddScoped<AppointmentImportService>();
+    builder.Services.AddHostedService<AppointmentConsumer>();
+}
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
