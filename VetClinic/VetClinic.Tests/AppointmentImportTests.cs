@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using VetClinic.Application.Services;
 using VetClinic.Contracts.Dto.Owners;
 using VetClinic.Contracts.Dto.Pets;
@@ -46,6 +47,41 @@ public sealed class AppointmentImportTests
         Assert.Equal(Contract.Owner, new OwnerContract(owner.FullName, owner.Address, owner.Phone));
         Assert.Equal(Contract.Vet, new VetContract(
             vet.PassportNumber, vet.FullName, vet.BirthYear, vet.SpecializationId, vet.WorkExperienceYears));
+    }
+
+    /// <summary>
+    /// Некорректные поля сообщения проверяются перед созданием приёма
+    /// </summary>
+    /// <param name="field">Некорректное поле</param>
+    [Theory]
+    [InlineData("FullName")]
+    [InlineData("Weight")]
+    [InlineData("BirthYear")]
+    public async Task ImportAsync_InvalidField_RejectsContract(string field)
+    {
+        var invalid = field switch
+        {
+            "FullName" => Contract with { Owner = Contract.Owner with { FullName = " " } },
+            "Weight" => Contract with { Pet = Contract.Pet with { Weight = 0 } },
+            "BirthYear" => Contract with { Vet = Contract.Vet with { BirthYear = DateTime.Today.Year + 1 } },
+            _ => throw new ArgumentOutOfRangeException(nameof(field))
+        };
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            CreateImporter().ImportAsync(invalid, TestContext.Current.CancellationToken));
+        Assert.Contains(field, exception.ValidationResult.MemberNames);
+    }
+
+    /// <summary>
+    /// Порода из контракта должна существовать в справочнике
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_UnknownBreed_RejectsContract()
+    {
+        var invalid = Contract with { Pet = Contract.Pet with { BreedId = int.MaxValue } };
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            CreateImporter().ImportAsync(invalid, TestContext.Current.CancellationToken));
     }
 
     /// <summary>
