@@ -50,6 +50,7 @@ if (builder.Configuration.GetConnectionString("kafka") is { Length: > 0 } kafkaC
         AutoOffsetReset = AutoOffsetReset.Earliest,
         AllowAutoCreateTopics = true,
         EnableAutoCommit = false,
+        EnableAutoOffsetStore = false,
         ReconnectBackoffMs = 1000,
         ReconnectBackoffMaxMs = 30000
     });

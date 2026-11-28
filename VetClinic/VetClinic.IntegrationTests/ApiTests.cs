@@ -132,17 +132,18 @@ public class ApiTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicAp
     }
 
     /// <summary>
-    /// Консьюмер сохраняет контракт один раз и откатывает изменения для неизвестной породы
+    /// Неудачная запись повторно читается после устранения конфликта в SQL Server
     /// </summary>
     [Fact]
-    public async Task ConsumeAsync_WithDuplicateAndInvalidContract_StoresValidAppointmentsOnce()
+    public async Task ConsumeAsync_AfterDatabaseWriteFails_RetriesWithoutDuplicates()
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TimeSpan.FromMinutes(2));
         var cancellationToken = timeout.Token;
+        var kafkaAddress = await _fixture.GetKafkaAddressAsync(cancellationToken);
         using var producer = new ProducerBuilder<string, string>(new ProducerConfig
         {
-            BootstrapServers = await _fixture.GetKafkaAddressAsync(cancellationToken),
+            BootstrapServers = kafkaAddress,
             MessageTimeoutMs = 30000
         }).Build();
         var contract = new AppointmentContract(
@@ -153,38 +154,62 @@ public class ApiTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicAp
             new DateTime(2026, 11, 30, 13, 0, 0),
             "777",
             false);
-        var invalid = contract with
+        var pending = contract with
         {
             ExternalId = Guid.NewGuid(),
-            Owner = contract.Owner with { FullName = "Владелец С Несуществующей Породой" },
-            Pet = contract.Pet with { BreedId = int.MaxValue }
+            Owner = contract.Owner with { FullName = "Владелец Повторно Обработанного Контракта" },
+            Vet = contract.Vet with { PassportNumber = "1000 345678" },
+            RoomNumber = "778"
         };
+        var blockingVet = await PostAsync<VetDto>("api/vets", pending.Vet);
         var next = contract with
         {
             ExternalId = Guid.NewGuid(),
             Owner = contract.Owner with { FullName = "Владелец Следующего Питомца" },
-            Vet = contract.Vet with { PassportNumber = "1000 345678" },
-            RoomNumber = "778"
+            Vet = contract.Vet with { PassportNumber = "1000 456789" },
+            RoomNumber = "779"
         };
         var partition = new TopicPartition(AppointmentContract.Topic, new Partition(0));
 
-        foreach (var item in new[] { contract, contract, invalid, next })
-        {
-            await producer.ProduceAsync(partition, new Message<string, string>
-            {
-                Key = item.ExternalId.ToString(),
-                Value = JsonSerializer.Serialize(item, JsonSerializerOptions.Web)
-            }, cancellationToken);
-        }
+        var importFailure = _fixture.WaitForImportFailureAsync(pending.ExternalId, cancellationToken);
+        await PublishAsync(contract);
+        await PublishAsync(contract);
+        var pendingRecord = await PublishAsync(pending);
+        await PublishAsync(next);
 
+        await importFailure;
+        using var offsetReader = new ConsumerBuilder<Ignore, Ignore>(new ConsumerConfig
+        {
+            BootstrapServers = kafkaAddress,
+            GroupId = "vetclinic-api",
+            EnableAutoCommit = false
+        }).Build();
+        var committed = Assert.Single(offsetReader.Committed([partition], TimeSpan.FromSeconds(10)));
+        Assert.Equal(pendingRecord.Offset, committed.Offset);
+
+        var beforeRetry = await GetAsync<List<AppointmentDto>>("api/appointments");
+        Assert.DoesNotContain(beforeRetry, item => item.RoomNumber == pending.RoomNumber || item.RoomNumber == next.RoomNumber);
+        var ownersBeforeRetry = await GetAsync<List<OwnerDto>>("api/owners");
+        Assert.DoesNotContain(ownersBeforeRetry, owner => owner.FullName == pending.Owner.FullName);
+
+        using var response = await _fixture.Api.DeleteAsync($"api/vets/{blockingVet.Id}", cancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var appointments = await WaitForAppointmentsAsync(item => item.RoomNumber == next.RoomNumber, cancellationToken);
 
         var saved = Assert.Single(appointments, item => item.RoomNumber == contract.RoomNumber);
         Assert.Equal(contract.DateTime, saved.DateTime);
         Assert.Equal(contract.IsRepeat, saved.IsRepeat);
+        Assert.Single(appointments, item => item.RoomNumber == pending.RoomNumber);
         var owners = await GetAsync<List<OwnerDto>>("api/owners");
         Assert.Single(owners, owner => owner.FullName == contract.Owner.FullName);
-        Assert.DoesNotContain(owners, owner => owner.FullName == invalid.Owner.FullName);
+        Assert.Single(owners, owner => owner.FullName == pending.Owner.FullName);
+
+        Task<DeliveryResult<string, string>> PublishAsync(AppointmentContract item) =>
+            producer.ProduceAsync(partition, new Message<string, string>
+            {
+                Key = item.ExternalId.ToString(),
+                Value = JsonSerializer.Serialize(item, JsonSerializerOptions.Web)
+            }, cancellationToken);
     }
 
     /// <summary>

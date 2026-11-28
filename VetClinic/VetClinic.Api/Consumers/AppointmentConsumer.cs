@@ -1,9 +1,5 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using Confluent.Kafka;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using VetClinic.Application.Exceptions;
 using VetClinic.Application.Services;
 using VetClinic.Contracts.Messages;
 
@@ -32,6 +28,7 @@ internal sealed class AppointmentConsumer(
         var delaySeconds = 1;
         while (!stoppingToken.IsCancellationRequested)
         {
+            string? messageKey = null;
             try
             {
                 using var consumer = new ConsumerBuilder<string, string>(config)
@@ -49,8 +46,10 @@ internal sealed class AppointmentConsumer(
                     while (!stoppingToken.IsCancellationRequested)
                     {
                         var record = consumer.Consume(stoppingToken);
+                        messageKey = record.Message.Key;
                         await ImportAsync(record.Message, stoppingToken);
                         consumer.Commit(record);
+                        messageKey = null;
                         delaySeconds = 1;
                     }
                 }
@@ -59,10 +58,10 @@ internal sealed class AppointmentConsumer(
                     consumer.Close();
                 }
             }
-            catch (Exception exception) when (!stoppingToken.IsCancellationRequested &&
-                exception is KafkaException or DbUpdateException or SqlException or InvalidOperationException)
+            catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
             {
-                logger.LogWarning(exception, "Импорт из Kafka прерван. Повтор через {DelaySeconds} с", delaySeconds);
+                logger.LogWarning(exception, "Импорт из Kafka прерван. Ключ записи {Key}. Повтор через {DelaySeconds} с",
+                    messageKey, delaySeconds);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
                 delaySeconds = Math.Min(delaySeconds * 2, 30);
             }
@@ -70,39 +69,24 @@ internal sealed class AppointmentConsumer(
     }
 
     /// <summary>
-    /// Передать сообщение в сервис импорта или отклонить некорректные данные
+    /// Передать сообщение в сервис импорта и дождаться завершения транзакции
     /// </summary>
     /// <param name="message">Сообщение Kafka</param>
     /// <param name="cancellationToken">Токен отмены</param>
     private async Task ImportAsync(Message<string, string> message, CancellationToken cancellationToken)
     {
-        try
-        {
-            var contract = JsonSerializer.Deserialize<AppointmentContract>(message.Value ?? string.Empty, JsonOptions);
-            if (contract is null)
-            {
-                throw new ValidationException("Сообщение не содержит записи на приём");
-            }
+        var contract = JsonSerializer.Deserialize<AppointmentContract>(message.Value ?? string.Empty, JsonOptions)
+            ?? throw new JsonException("Сообщение не содержит записи на приём");
 
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var importer = scope.ServiceProvider.GetRequiredService<AppointmentImportService>();
-            if (await importer.ImportAsync(contract, cancellationToken))
-            {
-                logger.LogInformation("Сохранена запись на приём {ExternalId}", contract.ExternalId);
-            }
-            else
-            {
-                logger.LogInformation("Запись на приём {ExternalId} уже сохранена", contract.ExternalId);
-            }
-        }
-        catch (Exception exception) when (exception is JsonException or ValidationException or KeyNotFoundException
-            or InvalidPetBreedException)
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var importer = scope.ServiceProvider.GetRequiredService<AppointmentImportService>();
+        if (await importer.ImportAsync(contract, cancellationToken))
         {
-            logger.LogWarning("Запись на приём {Key} отклонена: {Reason}", message.Key, exception.Message);
+            logger.LogInformation("Сохранена запись на приём {ExternalId}", contract.ExternalId);
         }
-        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        else
         {
-            logger.LogWarning("Запись на приём {Key} отклонена: нарушено ограничение уникальности", message.Key);
+            logger.LogInformation("Запись на приём {ExternalId} уже сохранена", contract.ExternalId);
         }
     }
 }
