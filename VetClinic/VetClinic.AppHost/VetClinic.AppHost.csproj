@@ -10,11 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Kafka" Version="13.6.5" />
     <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.6.5" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\VetClinic.Api\VetClinic.Api.csproj" />
+    <ProjectReference Include="..\VetClinic.Generator\VetClinic.Generator.csproj" />
   </ItemGroup>
 
 </Project>
