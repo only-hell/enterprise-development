@@ -50,6 +50,22 @@ public sealed class AppointmentImportTests
     }
 
     /// <summary>
+    /// Повторная доставка не создаёт второй приём
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_AlreadyProcessed_DoesNotCreateSecondAppointment()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var importer = CreateImporter();
+
+        Assert.True(await importer.ImportAsync(Contract, cancellationToken));
+        Assert.False(await importer.ImportAsync(Contract, cancellationToken));
+
+        Assert.Single(await _clinic.Appointments.GetAllAsync(cancellationToken),
+            appointment => appointment.DateTime == Contract.DateTime);
+    }
+
+    /// <summary>
     /// Некорректные поля сообщения проверяются перед созданием приёма
     /// </summary>
     /// <param name="field">Некорректное поле</param>
