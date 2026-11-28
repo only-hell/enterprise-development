@@ -20,8 +20,18 @@ builder.AddProject<Projects.VetClinic_Api>("api")
         url.DisplayText = "Scalar";
     });
 
-builder.AddProject<Projects.VetClinic_Generator>("generator")
+var generator = builder.AddProject<Projects.VetClinic_Generator>("generator")
     .WithReference(kafka)
     .WaitFor(kafka);
+
+if (builder.Configuration["Generation:IntervalSeconds"] is { } intervalSeconds)
+{
+    generator.WithEnvironment("Generation__IntervalSeconds", intervalSeconds);
+}
+
+if (builder.Configuration["Generation:BatchSize"] is { } batchSize)
+{
+    generator.WithEnvironment("Generation__BatchSize", batchSize);
+}
 
 builder.Build().Run();

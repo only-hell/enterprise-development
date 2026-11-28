@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VetClinic.Contracts\VetClinic.Contracts.csproj" />
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
