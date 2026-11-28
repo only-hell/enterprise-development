@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using VetClinic.Domain.Repositories;
 
 namespace VetClinic.Infrastructure.SqlServer;
@@ -22,6 +23,11 @@ public sealed class ClinicTransaction(VetClinicDbContext context) : IClinicTrans
         if (context.ChangeTracker.HasChanges())
         {
             throw new InvalidOperationException("Перед выполнением операции в контексте есть несохранённые изменения");
+        }
+
+        if (context.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel == IsolationLevel.Serializable)
+        {
+            return operation(cancellationToken);
         }
 
         return context.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
