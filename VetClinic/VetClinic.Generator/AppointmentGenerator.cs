@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bogus;
+using Bogus.DataSets;
 using VetClinic.Contracts.Messages;
 using VetClinic.Shared;
 
@@ -27,7 +28,7 @@ internal sealed class AppointmentGenerator
             var today = DateTime.Today;
             var animal = faker.PickRandom(Animals);
             var owner = new OwnerContract(
-                faker.Name.FullName(),
+                GenerateFullName(faker),
                 $"{faker.Address.StreetAddress()}, г. {faker.Address.City()}",
                 faker.Phone.PhoneNumber("+79#########"));
             var pet = new PetContract(
@@ -40,7 +41,7 @@ internal sealed class AppointmentGenerator
             var passport = Random.Shared.NextInt64(10_000_000_000).ToString("D10", CultureInfo.InvariantCulture);
             var vet = new VetContract(
                 passport.Insert(4, " "),
-                faker.Name.FullName(),
+                GenerateFullName(faker),
                 today.Year - age,
                 animal.SpecializationId,
                 faker.Random.Int(1, age - 24));
@@ -59,4 +60,17 @@ internal sealed class AppointmentGenerator
     /// Сгенерировать следующую запись на приём
     /// </summary>
     public AppointmentContract Generate() => _faker.Generate();
+
+    /// <summary>
+    /// Сгенерировать фамилию, имя и отчество
+    /// </summary>
+    /// <param name="faker">Генератор на русском языке</param>
+    private static string GenerateFullName(Faker faker)
+    {
+        var gender = faker.Random.Enum<Name.Gender>();
+        var patronymic = gender == Name.Gender.Male
+            ? faker.PickRandom("Александрович", "Иванович", "Сергеевич")
+            : faker.PickRandom("Александровна", "Ивановна", "Сергеевна");
+        return $"{faker.Name.LastName(gender)} {faker.Name.FirstName(gender)} {patronymic}";
+    }
 }

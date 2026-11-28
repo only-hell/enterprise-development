@@ -65,6 +65,17 @@ public sealed class ClinicApplicationFixture : IAsyncLifetime
     public HttpClient CreateAnonymousClient() => Application.CreateHttpClient("api", "http");
 
     /// <summary>
+    /// Адрес Kafka после запуска брокера
+    /// </summary>
+    /// <param name="cancellationToken">Токен отмены</param>
+    public async Task<string> GetKafkaAddressAsync(CancellationToken cancellationToken)
+    {
+        await Application.ResourceNotifications.WaitForResourceHealthyAsync("kafka", cancellationToken);
+        return await Application.GetConnectionStringAsync("kafka", cancellationToken)
+            ?? throw new InvalidOperationException("Aspire не передал адрес Kafka");
+    }
+
+    /// <summary>
     /// Запущенное приложение
     /// </summary>
     private DistributedApplication Application =>

@@ -1,5 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using Confluent.Kafka;
+using VetClinic.Contracts.Dto.Appointments;
+using VetClinic.Contracts.Dto.Owners;
+using VetClinic.Contracts.Dto.Vets;
+using VetClinic.Contracts.Messages;
+using VetClinic.Shared;
 
 namespace VetClinic.IntegrationTests;
 
@@ -122,6 +129,98 @@ public class ApiTests(ClinicApplicationFixture fixture) : IClassFixture<ClinicAp
         var storedBreed = (await GetAsync<List<BreedResponse>>("api/breeds")).Single(item => item.Id == breed.Id);
         var pets = await GetAsync<List<PetResponse>>("api/pets");
         Assert.DoesNotContain(pets, pet => pet.BreedId == breed.Id && pet.Species != storedBreed.Species);
+    }
+
+    /// <summary>
+    /// Консьюмер сохраняет контракт один раз и откатывает изменения для неизвестной породы
+    /// </summary>
+    [Fact]
+    public async Task ConsumeAsync_WithDuplicateAndInvalidContract_StoresValidAppointmentsOnce()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        var cancellationToken = timeout.Token;
+        using var producer = new ProducerBuilder<string, string>(new ProducerConfig
+        {
+            BootstrapServers = await _fixture.GetKafkaAddressAsync(cancellationToken),
+            MessageTimeoutMs = 30000
+        }).Build();
+        var contract = new AppointmentContract(
+            Guid.NewGuid(),
+            new OwnerContract("Тестовый Владелец Кафки", "ул. Проверочная, 2", "+79000000002"),
+            new PetContract("Пальма", AnimalSpecies.Dog, 1, new DateTime(2022, 10, 10), 27),
+            new VetContract("1000 234567", "Тестовый Ветеринар Кафки", 1985, 1, 12),
+            new DateTime(2026, 11, 30, 13, 0, 0),
+            "777",
+            false);
+        var invalid = contract with
+        {
+            ExternalId = Guid.NewGuid(),
+            Owner = contract.Owner with { FullName = "Владелец С Несуществующей Породой" },
+            Pet = contract.Pet with { BreedId = int.MaxValue }
+        };
+        var next = contract with
+        {
+            ExternalId = Guid.NewGuid(),
+            Owner = contract.Owner with { FullName = "Владелец Следующего Питомца" },
+            Vet = contract.Vet with { PassportNumber = "1000 345678" },
+            RoomNumber = "778"
+        };
+        var partition = new TopicPartition(AppointmentContract.Topic, new Partition(0));
+
+        foreach (var item in new[] { contract, contract, invalid, next })
+        {
+            await producer.ProduceAsync(partition, new Message<string, string>
+            {
+                Key = item.ExternalId.ToString(),
+                Value = JsonSerializer.Serialize(item, JsonSerializerOptions.Web)
+            }, cancellationToken);
+        }
+
+        var appointments = await WaitForAppointmentsAsync(item => item.RoomNumber == next.RoomNumber, cancellationToken);
+
+        var saved = Assert.Single(appointments, item => item.RoomNumber == contract.RoomNumber);
+        Assert.Equal(contract.DateTime, saved.DateTime);
+        Assert.Equal(contract.IsRepeat, saved.IsRepeat);
+        var owners = await GetAsync<List<OwnerDto>>("api/owners");
+        Assert.Single(owners, owner => owner.FullName == contract.Owner.FullName);
+        Assert.DoesNotContain(owners, owner => owner.FullName == invalid.Owner.FullName);
+    }
+
+    /// <summary>
+    /// Генератор запускается через Aspire и его запись появляется в API
+    /// </summary>
+    [Fact]
+    public async Task GetAppointments_AfterGeneratorStarts_ReturnsGeneratedAppointment()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        var cancellationToken = timeout.Token;
+        var today = DateTime.Today;
+
+        var appointments = await WaitForAppointmentsAsync(IsGenerated, cancellationToken);
+        var generated = appointments.First(IsGenerated);
+        var vet = await GetAsync<VetDto>($"api/vets/{generated.VetId}");
+        Assert.Equal(3, vet.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+
+        bool IsGenerated(AppointmentDto item) =>
+            item.DateTime.Date > today && item.RoomNumber is "101" or "102" or "205";
+    }
+
+    private async Task<List<AppointmentDto>> WaitForAppointmentsAsync(
+        Func<AppointmentDto, bool> condition, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var appointments = await _fixture.Api.GetFromJsonAsync<List<AppointmentDto>>("api/appointments", cancellationToken)
+                ?? throw new InvalidOperationException("API не вернул список записей на приём");
+            if (appointments.Any(condition))
+            {
+                return appointments;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+        }
     }
 
     private static object Pet(string species, int breedId, int ownerId = 1) => new
